@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 def translate_movie_info(info: MovieInfo):
     """根据配置翻译影片信息"""
     # 翻译标题
-    if info.title and Cfg().translator.fields.title and info.ori_title is None:
+    if (info.title and Cfg().translator.fields.title and info.ori_title is None
+            and not getattr(info, 'title_from_chinese_source', False)):
         result = translate(info.title, Cfg().translator.engine, info.actress)
         if 'trans' in result:
             info.ori_title = info.title
@@ -73,7 +74,7 @@ def translate(texts, engine: Union[
             paragraphs = [i['dst'] for i in result['trans_result']]
             rtn = {'trans': '\n'.join(paragraphs)}
         else:
-            err_msg = "{}: {}: {}".format(engine, result['error_code'], result['error_msg'])
+            err_msg = "{}: {}: {}".format(engine.name, result['error_code'], result['error_msg'])
     elif engine.name == 'bing':
         # 使用动态词典保护原文中的女优名，防止翻译后认不出来
         for i in actress:
@@ -96,7 +97,7 @@ def translate(texts, engine: Union[
             trans = ''.join(trans_break)
             rtn = {'trans': trans, 'orig_break': orig_break, 'trans_break': trans_break}
         else:
-            err_msg = "{}: {}: {}".format(engine, result['error']['code'], result['error']['message'])
+            err_msg = "{}: {}: {}".format(engine.name, result['error']['code'], result['error']['message'])
     elif engine.name == 'claude':
         try:
             result = claude_translate(texts, engine.api_key)

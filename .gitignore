@@ -134,3 +134,7 @@ ver_hook.py
 
 .idea
 .vscode
+
+# AList local progress / credentials
+.javsp-alist/
+config.alist.local.yml

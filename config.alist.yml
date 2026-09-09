@@ -1,0 +1,150 @@
+# INI-equivalent example. Fill translator credentials and AList token before use.
+scanner:
+  source: alist
+  ignored_id_pattern:
+  - (?ai:\w+2048\.com)
+  - (?ai:Carib(beancom)?)
+  - (?ai:[^a-z\d](f?hd|lt)[^a-z\d])
+  - (?ai:(?:\b|_)(?:144P|240P|360P|480P|720P|1080P|2K|4K)(?=\b|_))
+  input_directory: null
+  filename_extensions:
+  - .3gp
+  - .avi
+  - .f4v
+  - .flv
+  - .iso
+  - .m2ts
+  - .m4v
+  - .mkv
+  - .mov
+  - .mp4
+  - .mpeg
+  - .rm
+  - .rmvb
+  - .ts
+  - .vob
+  - .webm
+  - .wmv
+  - .strm
+  - .mpg
+  ignored_folder_name_pattern:
+  - ^\.
+  - ^\#recycle$
+  - ^\#整理完成$
+  - ^不要扫描$
+  - ^ready$
+  minimum_size: 232MiB
+  skip_nfo_dir: false
+  manual: false
+network:
+  proxy_server: http://127.0.0.1:7897
+  proxy_free:
+    avsox: https://avsox.click
+    javdb: https://javdb368.com
+    javbus: https://www.seedmm.help
+    javlib: https://www.y78k.com
+  retry: 1
+  timeout: PT5S
+crawler:
+  selection:
+    normal:
+    - airav
+    - avsox
+    - javbus
+    - javdb
+    - javlib
+    - jav321
+    - mgstage
+    - prestige
+    fc2:
+    - fc2
+    - avsox
+    - javdb
+    - javmenu
+    - fc2ppvdb
+    cid:
+    - fanza
+    getchu:
+    - dl_getchu
+    gyutto:
+    - gyutto
+  required_keys:
+  - cover
+  - title
+  hardworking: true
+  respect_site_avid: true
+  fc2fan_local_path: null
+  sleep_after_scraping: PT1S
+  use_javdb_cover: fallback
+  normalize_actress_name: true
+summarizer:
+  move_files: true
+  path:
+    output_folder_pattern: '{censor}/[{num}] {title}'
+    basename_pattern: '{num}'
+    length_maximum: 150
+    length_by_byte: true
+    max_actress_count: 10
+    hard_link: false
+  title:
+    remove_trailing_actor_name: true
+    prefer_chinese: true
+  default:
+    title: '#未知标题'
+    actress: '#未知女优'
+    series: '#未知系列'
+    director: '#未知导演'
+    producer: '#未知制作商'
+    publisher: '#未知发行商'
+  nfo:
+    basename_pattern: movie
+    title_pattern: '{num} {title}'
+    custom_genres_fields:
+    - '{genre}'
+    - '{censor}'
+    custom_tags_fields:
+    - '{genre}'
+    - '{censor}'
+  censor_options_representation:
+  - 无码
+  - 有码
+  - 打码情况未知
+  cover:
+    basename_pattern: poster
+    highres: true
+    add_label: false
+    crop:
+      on_id_pattern:
+      - ^\d{6}[-_]\d{3}$
+      - ^ARA
+      - ^SIRO
+      - ^GANA
+      - ^MIUM
+      engine: null
+  fanart:
+    basename_pattern: fanart
+  extra_fanarts:
+    enabled: false
+    scrap_interval: PT1.5S
+translator:
+  engine:
+    name: baidu
+    app_id: ''
+    api_key: ''
+  fields:
+    title: true
+    plot: true
+other:
+  interactive: false
+  check_update: true
+  auto_update: true
+alist:
+  base_url: http://192.168.100.10:5244
+  token: ''
+  source_dir: /115/bigsister
+  metadata_dir: /local-emby/bigsister
+  video_dir: /115/emby/bigsister
+  work_dir: .javsp-alist
+  http_timeout: 300
+  task_timeout: 3600
+  poll_interval: 2

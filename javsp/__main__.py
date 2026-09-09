@@ -1,4 +1,5 @@
 import os
+import posixpath
 import re
 import sys
 import json
@@ -11,7 +12,8 @@ import requests
 import threading
 from typing import Dict, List
 
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 import colorama
 import pretty_errors
@@ -199,6 +201,15 @@ def info_summary(movie: Movie, all_info: Dict[str, MovieInfo]):
                     absorbed.append(attr)
         if absorbed:
             logger.debug(f"从'{name}'中获取了字段: " + ' '.join(absorbed))
+    # 旧版 title__chinese_first 优先采用 AirAV 的中文标题；其他字段仍按站点顺序汇总。
+    chinese_title = getattr(all_info.get('airav'), 'title', None)
+    if Cfg().summarizer.title.prefer_chinese and chinese_title:
+        original_title = next((data.title for name, data in all_info.items()
+                               if name != 'airav' and data.title and data.title != chinese_title), None)
+        if original_title:
+            final_info.ori_title = original_title
+        final_info.title = chinese_title
+        final_info.title_from_chinese_source = True
     # 使用网站的番号作为番号
     if Cfg().crawler.respect_site_avid:
         id_weight = {}
@@ -259,7 +270,7 @@ def info_summary(movie: Movie, all_info: Dict[str, MovieInfo]):
     movie.info = final_info
     return True
 
-def generate_names(movie: Movie):
+def generate_names(movie: Movie, *, remote_roots=None):
     """按照模板生成相关文件的文件名"""
 
     def legalize_path(path: str):
@@ -268,6 +279,21 @@ def generate_names(movie: Movie):
             所以这里对文件路径进行合法化
         """
         return ''.join(c for c in path if c not in {'\n'})
+
+    path_ops = posixpath if remote_roots else os.path
+
+    def remaining_length(save_dir, basename, extension, fields):
+        if remote_roots is None:
+            return get_remaining_path_len(os.path.abspath(path_ops.join(save_dir, basename + extension)))
+        # Count the final remote paths, including metadata and every CD suffix.
+        names = [basename + (f'-CD{len(movie.files)}' if len(movie.files) > 1 else '') + extension,
+                 Cfg().summarizer.nfo.basename_pattern.format(**fields) + '.nfo',
+                 Cfg().summarizer.cover.basename_pattern.format(**fields) + '.jpeg',
+                 Cfg().summarizer.fanart.basename_pattern.format(**fields) + '.jpeg',
+                 'extrafanart/999999.png']
+        paths = [posixpath.join(root, save_dir, name) for root in remote_roots for name in names]
+        maximum = max(len(p.encode('utf-8')) if Cfg().summarizer.path.length_by_byte else len(p) for p in paths)
+        return Cfg().summarizer.path.length_maximum - maximum
 
     info = movie.info
     # 准备用来填充命名模板的字典
@@ -324,22 +350,22 @@ def generate_names(movie: Movie):
         for sub_end in range(len(title_break), 0, -1):
             copyd['title'] = replace_illegal_chars(''.join(title_break[:sub_end]).strip())
             if Cfg().summarizer.move_files:
-                save_dir = os.path.normpath(Cfg().summarizer.path.output_folder_pattern.format(**copyd)).strip()
-                basename = os.path.normpath(Cfg().summarizer.path.basename_pattern.format(**copyd)).strip()
+                save_dir = path_ops.normpath((Cfg().summarizer.path.output_folder_pattern.replace('\\', '/') if remote_roots else Cfg().summarizer.path.output_folder_pattern).format(**copyd)).strip()
+                basename = path_ops.normpath(Cfg().summarizer.path.basename_pattern.format(**copyd)).strip()
             else:
                 # 如果不整理文件，则保存抓取的数据到当前目录
                 save_dir = os.path.dirname(movie.files[0])
                 filebasename = os.path.basename(movie.files[0])
                 ext = os.path.splitext(filebasename)[1]
                 basename = filebasename.replace(ext, '')
-            long_path = os.path.join(save_dir, basename+longest_ext)
-            remaining = get_remaining_path_len(os.path.abspath(long_path))
+            long_path = path_ops.join(save_dir, basename+longest_ext)
+            remaining = remaining_length(save_dir, basename, longest_ext, copyd)
             if remaining > 0:
                 movie.save_dir = save_dir
                 movie.basename = basename
-                movie.nfo_file = os.path.join(save_dir, Cfg().summarizer.nfo.basename_pattern.format(**copyd) + '.nfo')
-                movie.fanart_file = os.path.join(save_dir, Cfg().summarizer.fanart.basename_pattern.format(**copyd) + '.jpg')
-                movie.poster_file = os.path.join(save_dir, Cfg().summarizer.cover.basename_pattern.format(**copyd) + '.jpg')
+                movie.nfo_file = path_ops.join(save_dir, Cfg().summarizer.nfo.basename_pattern.format(**copyd) + '.nfo')
+                movie.fanart_file = path_ops.join(save_dir, Cfg().summarizer.fanart.basename_pattern.format(**copyd) + '.jpg')
+                movie.poster_file = path_ops.join(save_dir, Cfg().summarizer.cover.basename_pattern.format(**copyd) + '.jpg')
                 return legalize_info()
     else:
         # 以防万一，当整理路径非常深或者标题起始很长一段没有标点符号时，硬性截短生成的名称
@@ -352,14 +378,14 @@ def generate_names(movie: Movie):
             ext = os.path.splitext(filebasename)[1]
             basename = filebasename.replace(ext, '')
         else:
-            save_dir = os.path.normpath(Cfg().summarizer.path.output_folder_pattern.format(**copyd)).strip()
-            basename = os.path.normpath(Cfg().summarizer.path.basename_pattern.format(**copyd)).strip()
+            save_dir = path_ops.normpath((Cfg().summarizer.path.output_folder_pattern.replace('\\', '/') if remote_roots else Cfg().summarizer.path.output_folder_pattern).format(**copyd)).strip()
+            basename = path_ops.normpath(Cfg().summarizer.path.basename_pattern.format(**copyd)).strip()
         movie.save_dir = save_dir
         movie.basename = basename
 
-        movie.nfo_file = os.path.join(save_dir, Cfg().summarizer.nfo.basename_pattern.format(**copyd) + '.nfo')
-        movie.fanart_file = os.path.join(save_dir, Cfg().summarizer.fanart.basename_pattern.format(**copyd) + '.jpg')
-        movie.poster_file = os.path.join(save_dir, Cfg().summarizer.cover.basename_pattern.format(**copyd) + '.jpg')
+        movie.nfo_file = path_ops.join(save_dir, Cfg().summarizer.nfo.basename_pattern.format(**copyd) + '.nfo')
+        movie.fanart_file = path_ops.join(save_dir, Cfg().summarizer.fanart.basename_pattern.format(**copyd) + '.jpg')
+        movie.poster_file = path_ops.join(save_dir, Cfg().summarizer.cover.basename_pattern.format(**copyd) + '.jpg')
 
         return legalize_info()
 
@@ -421,7 +447,7 @@ def process_poster(movie: Movie):
             fanart_cropped = add_label_to_poster(fanart_cropped, UNCENSORED_MARK_FILE, LabelPostion.BOTTOM_LEFT)
     fanart_cropped.save(movie.poster_file)
 
-def RunNormalMode(all_movies):
+def RunNormalMode(all_movies, *, remote_roots=None, prepare_output=None, move_files=None):
     """普通整理模式"""
     def check_step(result, msg='步骤错误'):
         """检查一个整理步骤的结果，并负责更新tqdm的进度"""
@@ -431,7 +457,8 @@ def RunNormalMode(all_movies):
             raise Exception(msg + '\n')
 
     outer_bar = tqdm(all_movies, desc='整理影片', ascii=True, leave=False)
-    total_step = 6
+    should_move = Cfg().summarizer.move_files if move_files is None else move_files
+    total_step = 6 if should_move else 5
     if Cfg().translator.engine:
         total_step += 1
     if Cfg().summarizer.extra_fanarts.enabled:
@@ -459,7 +486,10 @@ def RunNormalMode(all_movies):
                 success = translate_movie_info(movie.info)
                 check_step(success)
 
-            generate_names(movie)
+            generate_names(movie, remote_roots=remote_roots)
+            if prepare_output is not None:
+                prepare_output(movie)
+            movie.metadata_files = []
             check_step(movie.save_dir, '无法按命名规则生成目标文件夹')
             if not os.path.exists(movie.save_dir):
                 os.makedirs(movie.save_dir)
@@ -481,6 +511,7 @@ def RunNormalMode(all_movies):
                 movie.poster_file = os.path.splitext(movie.poster_file)[0] + actual_ext
 
             process_poster(movie)
+            movie.metadata_files.extend([movie.fanart_file, movie.poster_file])
 
             check_step(True)
 
@@ -497,7 +528,8 @@ def RunNormalMode(all_movies):
                         try:
                             info = download(pic_url, fanart_destination)
                             if valid_pic(fanart_destination):
-                                filesize = get_fmt_size(pic_path)
+                                movie.metadata_files.append(fanart_destination)
+                                filesize = get_fmt_size(fanart_destination)
                                 width, height = get_pic_size(pic_path)
                                 elapsed = time.strftime("%M:%S", time.gmtime(info['elapsed']))
                                 speed = get_fmt_size(info['rate']) + '/s'
@@ -511,8 +543,9 @@ def RunNormalMode(all_movies):
 
             inner_bar.set_description('写入NFO')
             write_nfo(movie.info, movie.nfo_file)
+            movie.metadata_files.append(movie.nfo_file)
             check_step(True)
-            if Cfg().summarizer.move_files:
+            if should_move:
                 inner_bar.set_description('移动影片文件')
                 movie.rename_files(Cfg().summarizer.path.hard_link)
                 check_step(True)
@@ -588,7 +621,7 @@ def entry():
     try:
         Cfg()
     except ValidationError as e:
-        print(e.errors())
+        print(e.errors(include_input=False))
         exit(1)
 
     global actressAliasMap
@@ -602,7 +635,13 @@ def entry():
     # 检查更新
     version_info = 'JavSP ' + getattr(sys, 'javsp_version', '未知版本/从代码运行')
     logger.debug(version_info.center(60, '='))
-    check_update(Cfg().other.check_update, Cfg().other.auto_update)
+    if Cfg().other.check_update or Cfg().other.auto_update:
+        check_update(Cfg().other.check_update, Cfg().other.auto_update)
+    if Cfg().scanner.source == 'alist':
+        from javsp.alist_pipeline import run_alist
+        import_crawlers()
+        sys.exit(run_alist(Cfg(), RunNormalMode))
+
     root = get_scan_dir(Cfg().scanner.input_directory)
     error_exit(root, '未选择要扫描的文件夹')
     # 导入抓取器，必须在chdir之前

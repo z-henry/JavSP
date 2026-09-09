@@ -2,7 +2,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from enum import Enum
 from typing import Dict, List, Literal, TypeAlias, Union
 from confz import BaseConfig, CLArgSource, EnvSource, FileSource
-from pydantic import ByteSize, Field, NonNegativeInt, PositiveInt
+from pydantic import ByteSize, Field, NonNegativeInt, PositiveInt, SecretStr
 from pydantic_extra_types.pendulum_dt import Duration
 from pydantic_core import Url
 from pathlib import Path
@@ -10,6 +10,7 @@ from pathlib import Path
 from javsp.lib import resource_path
 
 class Scanner(BaseConfig):
+    source: Literal['local', 'alist'] = 'local'
     ignored_id_pattern: List[str]
     input_directory: Path | None = None
     filename_extensions: List[str]
@@ -134,6 +135,7 @@ class PathSummarize(BaseConfig):
 
 class TitleSummarize(BaseConfig):
     remove_trailing_actor_name: bool
+    prefer_chinese: bool = False
 
 class NFOSummarize(BaseConfig):
     basename_pattern: str
@@ -163,7 +165,7 @@ class FanartSummarize(BaseConfig):
 
 class Summarizer(BaseConfig):
     default: MovieDefault
-    censor_options_representation: list[str]
+    censor_options_representation: list[str] = Field(min_length=3, max_length=3)
     title: TitleSummarize
     move_files: bool = True
     path: PathSummarize
@@ -227,7 +229,20 @@ def get_config_source():
     sources.append(CLArgSource(prefix='o'))
     return sources
 
+class AlistConfig(BaseConfig):
+    base_url: str
+    token: SecretStr = SecretStr('')
+    source_dir: str
+    metadata_dir: str
+    video_dir: str
+    work_dir: Path = Path('.javsp-alist')
+    http_timeout: PositiveInt = 300
+    task_timeout: PositiveInt = 3600
+    poll_interval: PositiveInt = 2
+
+
 class Cfg(BaseConfig):
+    alist: AlistConfig | None = None
     scanner: Scanner
     network: Network
     crawler: Crawler

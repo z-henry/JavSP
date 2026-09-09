@@ -105,7 +105,8 @@ class MovieInfo:
         d['rawtitle'] = info.ori_title or d['title']
         d['actress'] = ','.join(info.actress) if info.actress else Cfg().summarizer.default.actress
         d['score'] = info.score or '0'
-        d['censor'] = Cfg().summarizer.censor_options_representation[1 if info.uncensored else 0]
+        censor_index = 0 if info.uncensored is True else 1 if info.uncensored is False else 2
+        d['censor'] = Cfg().summarizer.censor_options_representation[censor_index]
         d['serial'] = info.serial or Cfg().summarizer.default.series
         d['director'] = info.director or Cfg().summarizer.default.director
         d['producer'] = info.producer or Cfg().summarizer.default.producer

@@ -18,7 +18,7 @@ def re_escape(s: str) -> str:
 def resource_path(path: str) -> str:
     """获取一个随代码打包的文件在解压后的路径"""
     if getattr(sys, "frozen", False):
-        return path
+        return str(Path(sys.executable).resolve().parent / path)
     else:
         path_joined = Path(__file__).parent.parent / path
         return str(path_joined)
